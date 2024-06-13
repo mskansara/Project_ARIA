@@ -7,15 +7,10 @@ import io
 import time
 from queue import Queue
 import threading
-
-import projectaria_tools
-from faster_whisper import WhisperModel
+from vosk import Model, KaldiRecognizer
+import json
 from common import update_iptables
-from projectaria_tools.core.sensor_data import (
-    ImageDataRecord,
-    AudioData,
-    AudioDataRecord,
-)
+
 # Argument parsing
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -47,22 +42,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-# Function to validate raw audio data
-def validate_raw_data(raw_data):
-    print("Raw data summary:")
-    # print(f"Data type: {type(raw_data)}")
-    # print(f"Data range: {raw_data.min()} to {raw_data.max()}")
-    # print(f"Data shape: {raw_data.shape}")
-    # print(f"First few values: {raw_data[:10]}")
-
-
 # Function to convert raw audio data to WAV format
 def convert_to_wav(raw_data, sample_rate=16000):
     # Ensure raw_data is a NumPy array
-    raw_data = np.array(raw_data, dtype=np.int32)  # Use int32 to avoid overflow during initial conversion
-    # print(type(raw_data))
-    # Debugging information
-    # validate_raw_data(raw_data)
+    raw_data = np.array(raw_data, dtype=np.int32)
 
     # Clamp the values to the valid range of int16
     raw_data = np.clip(raw_data, -32768, 32767)
@@ -82,64 +65,28 @@ def convert_to_wav(raw_data, sample_rate=16000):
     wav_io.seek(0)
     return wav_io
 
-# Check and normalize the audio data
-def check_and_normalize_audio(raw_data):
-    # print("Raw data summary:")
-    # print(f"Data type: {type(raw_data)}")
-    # print(f"Data shape: {raw_data.shape}")
-    # print(f"First few raw data values: {raw_data[:10]}")
-
-    # Normalize data to range -1.0 to 1.0
-    if raw_data.dtype != np.float32:
-        raw_data = raw_data.astype(np.float32)
-    audio_data_normalized = np.clip(raw_data / 32768.0, -1.0, 1.0)
-
-    # print("Normalized data sample values:", audio_data_normalized[:10])
-    return audio_data_normalized
-
-
-def check_for_overflows(audio_data):
-    # Ensure audio_data is a NumPy array
-    if not isinstance(audio_data, np.ndarray):
-        audio_data = np.array(audio_data)
-
-    min_val, max_val = -32768, 32767
-
-    # Check for out-of-bound values
-    if np.any(audio_data < min_val) or np.any(audio_data > max_val):
-        # print("Warning: Audio data contains values outside the int16 range.")
-        # print("Values will be clamped to avoid overflow.")
-        overflow_values = audio_data[(audio_data < min_val) | (audio_data > max_val)]
-        # print(f"Overflow values: {overflow_values}")
-        return np.clip(audio_data, min_val, max_val)
-
-    return audio_data
-
 
 # Transcription function
-def transcribe_audio(model, audio_queue):
+# Transcription function
+def transcribe_audio(recognizer, audio_queue):
     while True:
         if not audio_queue.empty():
             raw_data = audio_queue.get()
-
-            audio_data_normalized = check_and_normalize_audio(raw_data)
-            audio_length_seconds = audio_data_normalized.size / 16000
-            # print(f"Audio length: {audio_length_seconds:.2f} seconds")
-
-            if audio_length_seconds < 0.5:
-                print("Warning: The audio segment is very short for effective transcription.")
-                continue
-
             try:
-                segments, info = model.transcribe(audio_data_normalized, beam_size=5, language='en')
-                segments_list = list(segments)
-                # print(segments_list)
-                for segment in segments_list:
-                    print(f"Start: {segment.start:.2f} seconds")
-                    print(f"End: {segment.end:.2f} seconds")
-                    print(f"Text: {segment.text}")
-                    print(f"Tokens: {segment.tokens}")
-                    # print(f"Confidence: {segment.confidence:.2f}")
+                audio_io = convert_to_wav(raw_data)
+                audio_data = audio_io.read()
+                # print(f"Received audio data: {len(audio_data)} bytes")
+
+                if recognizer.AcceptWaveform(audio_data):
+                    result = recognizer.Result()
+                    result_json = json.loads(result)
+                    transcription = result_json.get('text', '').strip()
+                    print(f"Transcription: {transcription}")
+                else:
+                    partial_result = recognizer.PartialResult()
+                    partial_result_json = json.loads(partial_result)
+                    partial_transcription = partial_result_json.get('partial', '').strip()
+                    # print(f"Partial Transcription: {partial_transcription}")
 
             except Exception as e:
                 print("An error occurred during transcription:", e)
@@ -147,25 +94,17 @@ def transcribe_audio(model, audio_queue):
             time.sleep(0.1)
 
 
+
+
 # Observer class to handle incoming audio data
 class StreamingClientObserver:
     def __init__(self, audio_queue):
         self.audio_queue = audio_queue
-        self.audio_buffer = []  # Initialize an empty list to buffer audio data
-        self.buffer_duration = 20.0  # Desired buffer duration in seconds (e.g., 2 seconds)
-        self.sample_rate = 16000  # Sample rate in Hz
+
+        print(audio_queue)
 
     def on_audio_received(self, audio_data: np.array, timestamp: int):
-        # Add received audio data to the buffer
-        self.audio_buffer.extend(audio_data.data)
-        current_buffer_length = len(self.audio_buffer) / self.sample_rate
-        if current_buffer_length >= self.buffer_duration:
-            clamped_buffer = check_for_overflows(self.audio_buffer)
-            audio_data_int16 = np.array(clamped_buffer, dtype=np.int16)
-            self.audio_queue.put(audio_data_int16)
-            # print(f"Buffered audio length: {current_buffer_length:.2f} seconds")
-            # print(f"First few raw data values: {audio_data_int16[:10]}")
-            self.audio_buffer = []
+        self.audio_queue.put(audio_data.data)
 
 
 # Main function to set up and manage streaming
@@ -211,9 +150,11 @@ def main():
     print("Start listening to audio data")
     streaming_client.subscribe()
 
-    model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+    model_path = "vosk-model-en-us-0.42-gigaspeech"  # Change this to the path where your model is located
+    model = Model(model_path)
+    recognizer = KaldiRecognizer(model, 16000)  # Assuming a sample rate of 16000
 
-    transcription_thread = threading.Thread(target=transcribe_audio, args=(model, audio_queue), daemon=True)
+    transcription_thread = threading.Thread(target=transcribe_audio, args=(recognizer, audio_queue), daemon=True)
     transcription_thread.start()
 
     try:

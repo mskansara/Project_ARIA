@@ -4,16 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="35123fc9-9048-4c03-9d5d-83ad5d86c817" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/Project_ARIA.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/audio_transcribe.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/common.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/whisper_model.py" afterDir="false" />
+    <list default="true" id="35123fc9-9048-4c03-9d5d-83ad5d86c817" name="Changes" comment="Faster_whisper implementation for transcribing audio.">
+      <change afterPath="$PROJECT_DIR$/common_voice_en_39586346.mp3" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/vosk_model.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/whsiper_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/audio_transcribe.py" beforeDir="false" afterPath="$PROJECT_DIR$/audio_transcribe.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,6 +26,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "mskansara"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/mskansara/Project_ARIA.git",
+    "accountId": "3bc322c9-fe3d-4427-a6af-a663710cd6c2"
+  }
+}]]></component>
   <component name="ProjectColorInfo"><![CDATA[{
   "associatedIndex": 5
 }]]></component>
@@ -45,6 +53,7 @@
   "keyToString": {
     "Python.audio_transcribe.executor": "Run",
     "Python.whisper_model.executor": "Run",
+    "Python.whsiper_test.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "git-widget-placeholder": "master"
   }
@@ -70,17 +79,30 @@
       <option name="presentableId" value="Default" />
       <updated>1718201042629</updated>
     </task>
+    <task id="LOCAL-00001" summary="Faster_whisper implementation for transcribing audio.">
+      <option name="closed" value="true" />
+      <created>1718216107800</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1718216107800</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
-  <component name="XDebuggerManager">
-    <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/audio_transcribe.py</url>
-          <line>118</line>
-          <option name="timeStamp" value="1" />
-        </line-breakpoint>
-      </breakpoints>
-    </breakpoint-manager>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Faster_whisper implementation for transcribing audio." />
+    <option name="LAST_COMMIT_MESSAGE" value="Faster_whisper implementation for transcribing audio." />
   </component>
 </project>
