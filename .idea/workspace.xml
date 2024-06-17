@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="35123fc9-9048-4c03-9d5d-83ad5d86c817" name="Changes" comment="Faster_whisper implementation for transcribing audio.">
-      <change afterPath="$PROJECT_DIR$/common_voice_en_39586346.mp3" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/vosk_model.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/whsiper_test.py" afterDir="false" />
+    <list default="true" id="35123fc9-9048-4c03-9d5d-83ad5d86c817" name="Changes" comment="Added buffer to get the chunk of 20 seconds.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/audio_transcribe.py" beforeDir="false" afterPath="$PROJECT_DIR$/audio_transcribe.py" afterDir="false" />
     </list>
@@ -87,7 +84,15 @@
       <option name="project" value="LOCAL" />
       <updated>1718216107800</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Added buffer to get the chunk of 20 seconds.">
+      <option name="closed" value="true" />
+      <created>1718289639779</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1718289639779</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -103,6 +108,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Faster_whisper implementation for transcribing audio." />
-    <option name="LAST_COMMIT_MESSAGE" value="Faster_whisper implementation for transcribing audio." />
+    <MESSAGE value="Added buffer to get the chunk of 20 seconds." />
+    <option name="LAST_COMMIT_MESSAGE" value="Added buffer to get the chunk of 20 seconds." />
   </component>
 </project>

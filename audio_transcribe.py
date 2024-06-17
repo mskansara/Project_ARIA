@@ -7,6 +7,8 @@ import io
 import time
 from queue import Queue
 import threading
+import librosa
+import webrtcvad
 
 import projectaria_tools
 from faster_whisper import WhisperModel
@@ -115,38 +117,32 @@ def check_for_overflows(audio_data):
 
     return audio_data
 
-
+# Constants (updated)
+SAMPLE_RATE = 16000
+CHUNK_DURATION = 1.0  # Process 1-second chunks for real-time transcription
+SCALING_FACTOR = 32767  # Initial scaling factor
+FRAME_DURATION_MS = 30  # Frame duration for VAD (10, 20, or 30 ms)
+SAMPLES_PER_FRAME = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
 # Transcription function
 def transcribe_audio(model, audio_queue):
+    audio_buffer = []
     while True:
         if not audio_queue.empty():
-            raw_data = audio_queue.get()
+            audio_data = audio_queue.get()
+            audio_data_normalized = librosa.util.normalize(audio_data)
+            audio_buffer.extend(audio_data_normalized)
+            print(audio_buffer)
+            if len(audio_buffer) >= 3 * SAMPLE_RATE:  # Accumulate 3 seconds of speech
+                try:
+                    segments, info = model.transcribe(np.array(audio_buffer), beam_size=10, language='en')
+                    for segment in segments:
+                        print("[", segment.start, "-->", segment.end, "]", segment.text)
+                except Exception as e:
+                    print("Transcription error:", e)
 
-            audio_data_normalized = check_and_normalize_audio(raw_data)
-            audio_length_seconds = audio_data_normalized.size / 16000
-            # print(f"Audio length: {audio_length_seconds:.2f} seconds")
-
-            if audio_length_seconds < 0.5:
-                print("Warning: The audio segment is very short for effective transcription.")
-                continue
-
-            try:
-                segments, info = model.transcribe(audio_data_normalized, beam_size=5, language='en')
-                segments_list = list(segments)
-                # print(segments_list)
-                for segment in segments_list:
-                    print(f"Start: {segment.start:.2f} seconds")
-                    print(f"End: {segment.end:.2f} seconds")
-                    print(f"Text: {segment.text}")
-                    print(f"Tokens: {segment.tokens}")
-                    # print(f"Confidence: {segment.confidence:.2f}")
-
-            except Exception as e:
-                print("An error occurred during transcription:", e)
+                audio_buffer = []  # Reset buffer
         else:
             time.sleep(0.1)
-
-
 # Observer class to handle incoming audio data
 class StreamingClientObserver:
     def __init__(self, audio_queue):
@@ -155,17 +151,17 @@ class StreamingClientObserver:
         self.buffer_duration = 20.0  # Desired buffer duration in seconds (e.g., 2 seconds)
         self.sample_rate = 16000  # Sample rate in Hz
 
-    def on_audio_received(self, audio_data: np.array, timestamp: int):
+
+    def on_audio_received(self, audio_data: np.array, record:AudioDataRecord):
         # Add received audio data to the buffer
-        self.audio_buffer.extend(audio_data.data)
-        current_buffer_length = len(self.audio_buffer) / self.sample_rate
-        if current_buffer_length >= self.buffer_duration:
-            clamped_buffer = check_for_overflows(self.audio_buffer)
-            audio_data_int16 = np.array(clamped_buffer, dtype=np.int16)
-            self.audio_queue.put(audio_data_int16)
-            # print(f"Buffered audio length: {current_buffer_length:.2f} seconds")
-            # print(f"First few raw data values: {audio_data_int16[:10]}")
-            self.audio_buffer = []
+        global SCALING_FACTOR  # Access the global scaling factor variable
+        audio_data_clipped = np.clip(audio_data.data, -32768, 32767)
+        audio_data_int16 = audio_data_clipped.astype(np.int16)
+        max_amplitude = np.max(np.abs(audio_data_int16))
+
+        if max_amplitude > 0:
+            SCALING_FACTOR = 32767 / max_amplitude
+        self.audio_queue.put(audio_data_int16)
 
 
 # Main function to set up and manage streaming
@@ -211,10 +207,12 @@ def main():
     print("Start listening to audio data")
     streaming_client.subscribe()
 
+    # print(observer.audio_queue)
     model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
 
-    transcription_thread = threading.Thread(target=transcribe_audio, args=(model, audio_queue), daemon=True)
+    transcription_thread = threading.Thread(target=transcribe_audio, args=(model, observer.audio_queue), daemon=True)
     transcription_thread.start()
+    print("Transcription thread started")
 
     try:
         while True:
