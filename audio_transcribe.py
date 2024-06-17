@@ -129,18 +129,27 @@ def transcribe_audio(model, audio_queue):
     while True:
         if not audio_queue.empty():
             audio_data = audio_queue.get()
-            audio_data_normalized = librosa.util.normalize(audio_data)
-            audio_buffer.extend(audio_data_normalized)
-            print(audio_buffer)
-            if len(audio_buffer) >= 3 * SAMPLE_RATE:  # Accumulate 3 seconds of speech
-                try:
-                    segments, info = model.transcribe(np.array(audio_buffer), beam_size=10, language='en')
-                    for segment in segments:
-                        print("[", segment.start, "-->", segment.end, "]", segment.text)
-                except Exception as e:
-                    print("Transcription error:", e)
+            # audio_data_normalized = librosa.util.normalize(audio_data)
+            audio_buffer.extend(audio_data)
+            raw_data = audio_queue.get()
+            audio_length_seconds = len(raw_data) / 16000  # Calculate audio length in seconds
 
-                audio_buffer = []  # Reset buffer
+            # print(audio_buffer)
+            if audio_length_seconds < 0.5:
+                print("Warning: The audio segment is very short for effective transcription.")
+                continue
+
+            try:
+                segments, info = model.transcribe(raw_data, beam_size=5, language='en')
+                segments_list = list(segments)
+                # print(segments_list)
+                for segment in segments_list:
+                    print(f"Start: {segment.start:.2f} seconds")
+                    print(f"End: {segment.end:.2f} seconds")
+                    print(f"Text: {segment.text}")
+                    print(f"Tokens: {segment.tokens}")
+            except Exception as e:
+                print("An error occurred during transcription:", e)
         else:
             time.sleep(0.1)
 # Observer class to handle incoming audio data
@@ -148,20 +157,21 @@ class StreamingClientObserver:
     def __init__(self, audio_queue):
         self.audio_queue = audio_queue
         self.audio_buffer = []  # Initialize an empty list to buffer audio data
-        self.buffer_duration = 20.0  # Desired buffer duration in seconds (e.g., 2 seconds)
+        self.buffer_duration = 20.0  # Desired buffer duration in seconds (e.g., 20 seconds)
         self.sample_rate = 16000  # Sample rate in Hz
 
 
     def on_audio_received(self, audio_data: np.array, record:AudioDataRecord):
         # Add received audio data to the buffer
-        global SCALING_FACTOR  # Access the global scaling factor variable
-        audio_data_clipped = np.clip(audio_data.data, -32768, 32767)
-        audio_data_int16 = audio_data_clipped.astype(np.int16)
-        max_amplitude = np.max(np.abs(audio_data_int16))
-
-        if max_amplitude > 0:
-            SCALING_FACTOR = 32767 / max_amplitude
-        self.audio_queue.put(audio_data_int16)
+        print(audio_data.data)
+        self.audio_buffer.extend(audio_data.data)
+        current_buffer_length = len(self.audio_buffer) / self.sample_rate
+        if current_buffer_length >= self.buffer_duration:
+            # Ensure audio data is within int16 range
+            clamped_buffer = check_for_overflows(self.audio_buffer)
+            audio_data_int16 = np.array(clamped_buffer, dtype=np.int16)
+            self.audio_queue.put(audio_data_int16)
+            self.audio_buffer = []  # Clear the buffer after putting data in the queue
 
 
 # Main function to set up and manage streaming
@@ -187,34 +197,35 @@ def main():
         streaming_config.streaming_interface = aria.StreamingInterface.Usb
     streaming_config.security_options.use_ephemeral_certs = True
     streaming_manager.streaming_config = streaming_config
-
-    streaming_manager.start_streaming()
-    streaming_state = streaming_manager.streaming_state
-    print(f"Streaming state: {streaming_state}")
-
-    config = streaming_client.subscription_config
-    config.subscriber_data_type = aria.StreamingDataType.Audio
-    config.message_queue_size[aria.StreamingDataType.Audio] = 10
-    options = aria.StreamingSecurityOptions()
-    options.use_ephemeral_certs = True
-    config.security_options = options
-    streaming_client.subscription_config = config
-
-    audio_queue = Queue()
-    observer = StreamingClientObserver(audio_queue)
-    streaming_client.set_streaming_client_observer(observer)
-
-    print("Start listening to audio data")
-    streaming_client.subscribe()
-
-    # print(observer.audio_queue)
-    model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
-
-    transcription_thread = threading.Thread(target=transcribe_audio, args=(model, observer.audio_queue), daemon=True)
-    transcription_thread.start()
-    print("Transcription thread started")
-
     try:
+        streaming_manager.start_streaming()
+        streaming_state = streaming_manager.streaming_state
+        print(f"Streaming state: {streaming_state}")
+
+        config = streaming_client.subscription_config
+        config.subscriber_data_type = aria.StreamingDataType.Audio
+        config.message_queue_size[aria.StreamingDataType.Audio] = 10
+        options = aria.StreamingSecurityOptions()
+        options.use_ephemeral_certs = True
+        config.security_options = options
+        streaming_client.subscription_config = config
+
+        audio_queue = Queue()
+        observer = StreamingClientObserver(audio_queue)
+        streaming_client.set_streaming_client_observer(observer)
+
+        print("Start listening to audio data")
+    
+        streaming_client.subscribe()
+
+        # print(observer.audio_queue)
+        model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+
+        transcription_thread = threading.Thread(target=transcribe_audio, args=(model, observer.audio_queue), daemon=True)
+        transcription_thread.start()
+        print("Transcription thread started")
+
+    
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
